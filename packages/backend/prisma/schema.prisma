@@ -1,0 +1,915 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// AUTH & USERS
+// ============================================================
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  phone        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  userRoles           UserRole[]
+  passwordHistory     PasswordHistory[]
+  sessions            Session[]
+  auditEvents         AuditEvent[]        @relation("AuditActor")
+  createdMovements    Movement[]          @relation("MovementCreatedBy")
+  projectUsers        ProjectUser[]
+  maintenanceWos      MaintenanceWo[]     @relation("WoAssignedTo")
+  approvalActions     ApprovalAction[]
+  notifications       Notification[]
+  notificationPrefs   NotificationPreference[]
+  createdApprovals    ApprovalInstance[]  @relation("ApprovalRequestedBy")
+  savedQueries        QuerySaved[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  permissions      RolePermission[]
+  userRoles        UserRole[]
+  approvalSteps    ApprovalChainStep[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  id       String @id @default(uuid())
+  roleId   String
+  resource String // Resource enum
+  action   String // PermissionAction enum
+  scope    String @default("ALL") // PermissionScope enum
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, resource, action])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id        String  @id @default(uuid())
+  userId    String
+  roleId    String
+  projectId String? // null = global scope
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role    Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id])
+
+  @@unique([userId, roleId, projectId])
+  @@map("user_roles")
+}
+
+model PasswordHistory {
+  id           String   @id @default(uuid())
+  userId       String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_history")
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String   // AuditAction enum
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("audit_events")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// ============================================================
+// PLACES & PROJECTS
+// ============================================================
+
+model Place {
+  id       String  @id @default(uuid())
+  code     String  @unique
+  name     String
+  type     String  // PlaceType enum
+  address  String?
+  lat      Float?
+  lng      Float?
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  projects           Project[]
+  sourceMovements    Movement[]           @relation("MovementSource")
+  destMovements      Movement[]           @relation("MovementDest")
+  stockBalances      StockCodeBalance[]
+  currentStock       StockCodeCurrentPlace[]
+  safetyStockRules   SafetyStockRule[]
+  maintenanceWos     MaintenanceWo[]
+
+  @@map("places")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  placeId     String
+  status      String   @default("PLANNING") // ProjectStatus enum
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  place            Place             @relation(fields: [placeId], references: [id])
+  piles            Pile[]
+  projectUsers     ProjectUser[]
+  userRoles        UserRole[]
+  forecastVersions ForecastVersion[]
+  movements        Movement[]
+
+  @@map("projects")
+}
+
+model ProjectUser {
+  id        String @id @default(uuid())
+  projectId String
+  userId    String
+  role      String // ProjectRole enum
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_users")
+}
+
+model ForecastVersion {
+  id        String   @id @default(uuid())
+  projectId String
+  version   Int
+  data      Json
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, version])
+  @@map("forecast_versions")
+}
+
+model Pile {
+  id              String   @id @default(uuid())
+  pileNo          String
+  projectId       String
+  status          String   @default("PLANNED") // PileStatus enum
+  holdReason      String?
+  designDiameter  Float
+  designDepth     Float
+  designCapacity  Float?
+  actualDiameter  Float?
+  actualDepth     Float?
+  easting         Float?
+  northing        Float?
+  concreteVolume  Float?
+  steelWeight     Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  project            Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  inspectionRecords  PileInspectionRecord[]
+  holdPoints         PileHoldPoint[]
+
+  @@unique([projectId, pileNo])
+  @@map("piles")
+}
+
+model PileInspectionChecklist {
+  id          String   @id @default(uuid())
+  name        String
+  transition  String   // e.g. "BORED_TO_CAGED"
+  items       Json     // Array of checklist items
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  records PileInspectionRecord[]
+
+  @@map("pile_inspection_checklists")
+}
+
+model PileInspectionRecord {
+  id            String   @id @default(uuid())
+  pileId        String
+  checklistId   String
+  inspectorId   String
+  results       Json     // { itemId: boolean/string }
+  passed        Boolean
+  remarks       String?
+  inspectedAt   DateTime @default(now())
+
+  pile      Pile                    @relation(fields: [pileId], references: [id], onDelete: Cascade)
+  checklist PileInspectionChecklist @relation(fields: [checklistId], references: [id])
+
+  @@map("pile_inspection_records")
+}
+
+model PileHoldPoint {
+  id          String    @id @default(uuid())
+  pileId      String
+  atStatus    String    // Status where hold point exists
+  reason      String
+  setById     String
+  clearedById String?
+  setAt       DateTime  @default(now())
+  clearedAt   DateTime?
+
+  pile Pile @relation(fields: [pileId], references: [id], onDelete: Cascade)
+
+  @@map("pile_hold_points")
+}
+
+// ============================================================
+// STOCK CODES & INVENTORY
+// ============================================================
+
+model Uom {
+  id   String @id @default(uuid())
+  code String @unique
+  name String
+
+  stockCodes StockCode[]
+
+  @@map("uoms")
+}
+
+model StockCode {
+  id          String @id @default(uuid())
+  code        String @unique
+  description String
+  category    String // StockCodeCategory enum
+  uomId       String
+
+  // 9 Tags
+  isSerialized          Boolean @default(false)
+  carriesAttachments    Boolean @default(false)
+  isOperationalEnabler  Boolean @default(false)
+  receiptRequired       Boolean @default(false)
+  isBulkConsumable      Boolean @default(false)
+  isSingleUse           Boolean @default(false)
+  maintenancePolicy     String  @default("NONE") // MaintenancePolicy enum
+  requiresCertification Boolean @default(false)
+  isHighValue           Boolean @default(false)
+
+  // Asset fields (serialized only)
+  make              String?
+  model             String?
+  serialNumber      String?
+  assetTag          String?
+  yearManufactured  Int?
+  condition         String? // AssetCondition enum
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  uom                Uom                    @relation(fields: [uomId], references: [id])
+  movements          StockCodeMovement[]
+  balances           StockCodeBalance[]
+  currentPlaces      StockCodeCurrentPlace[]
+  meters             StockCodeMeter[]
+  adjustments        StockAdjustment[]
+  safetyStockRules   SafetyStockRule[]
+  movementLines      MovementLine[]
+  carrierAssemblies  UnitAssembly[]         @relation("AssemblyCarrier")
+  mountedAssemblies  UnitAssembly[]         @relation("AssemblyMounted")
+  operationalDeps    OperationalDependency[] @relation("DepDependent")
+  enablerDeps        OperationalDependency[] @relation("DepEnabler")
+  compatCarrier      AttachmentCompatibility[] @relation("CompatCarrier")
+  compatAttachment   AttachmentCompatibility[] @relation("CompatAttachment")
+  maintenanceWos     MaintenanceWo[]
+  pmSchedules        PmSchedule[]
+  certRecords        CertificationRecord[]
+  costHeads          CostHead[]
+
+  @@map("stock_codes")
+}
+
+model StockCodeMovement {
+  id          String   @id @default(uuid())
+  stockCodeId String
+  placeId     String
+  direction   String   // LedgerDirection: IN or OUT
+  qty         Float
+  movementId  String?  // FK to Movement (nullable for adjustments)
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  stockCode StockCode @relation(fields: [stockCodeId], references: [id])
+
+  @@index([stockCodeId, placeId])
+  @@index([movementId])
+  @@index([createdAt])
+  @@map("stock_code_movements")
+}
+
+model StockCodeBalance {
+  id          String   @id @default(uuid())
+  stockCodeId String
+  placeId     String
+  qty         Float
+  snapshotAt  DateTime @default(now())
+
+  stockCode StockCode @relation(fields: [stockCodeId], references: [id])
+  place     Place     @relation(fields: [placeId], references: [id])
+
+  @@index([stockCodeId, placeId])
+  @@map("stock_code_balances")
+}
+
+model StockCodeCurrentPlace {
+  id          String @id @default(uuid())
+  stockCodeId String
+  placeId     String
+  qty         Float  @default(0)
+  updatedAt   DateTime @updatedAt
+
+  stockCode StockCode @relation(fields: [stockCodeId], references: [id])
+  place     Place     @relation(fields: [placeId], references: [id])
+
+  @@unique([stockCodeId, placeId])
+  @@map("stock_code_current_places")
+}
+
+model StockCodeMeter {
+  id          String   @id @default(uuid())
+  stockCodeId String
+  meterType   String   // e.g. "HOURS", "KM", "CYCLES"
+  reading     Float
+  readingAt   DateTime @default(now())
+  recordedBy  String
+
+  stockCode StockCode @relation(fields: [stockCodeId], references: [id], onDelete: Cascade)
+
+  @@index([stockCodeId, meterType])
+  @@map("stock_code_meters")
+}
+
+model StockAdjustment {
+  id          String   @id @default(uuid())
+  stockCodeId String
+  placeId     String
+  qtyBefore   Float
+  qtyAfter    Float
+  reason      String
+  adjustedBy  String
+  createdAt   DateTime @default(now())
+
+  stockCode StockCode @relation(fields: [stockCodeId], references: [id])
+
+  @@map("stock_adjustments")
+}
+
+model SafetyStockRule {
+  id          String @id @default(uuid())
+  stockCodeId String
+  placeId     String
+  minQty      Float
+  reorderQty  Float?
+  isActive    Boolean @default(true)
+
+  stockCode StockCode @relation(fields: [stockCodeId], references: [id])
+  place     Place     @relation(fields: [placeId], references: [id])
+
+  @@unique([stockCodeId, placeId])
+  @@map("safety_stock_rules")
+}
+
+// ============================================================
+// ASSEMBLY
+// ============================================================
+
+model UnitAssembly {
+  id           String    @id @default(uuid())
+  carrierId    String
+  mountedId    String
+  action       String    // MountAction enum
+  mountedAt    DateTime  @default(now())
+  unmountedAt  DateTime?
+  mountedBy    String
+  unmountedBy  String?
+
+  carrier StockCode @relation("AssemblyCarrier", fields: [carrierId], references: [id])
+  mounted StockCode @relation("AssemblyMounted", fields: [mountedId], references: [id])
+
+  @@index([carrierId])
+  @@index([mountedId])
+  @@map("unit_assemblies")
+}
+
+model OperationalDependency {
+  id          String @id @default(uuid())
+  dependentId String
+  enablerId   String
+  description String?
+
+  dependent StockCode @relation("DepDependent", fields: [dependentId], references: [id])
+  enabler   StockCode @relation("DepEnabler", fields: [enablerId], references: [id])
+
+  @@unique([dependentId, enablerId])
+  @@map("operational_dependencies")
+}
+
+model AttachmentCompatibility {
+  id           String @id @default(uuid())
+  carrierId    String
+  attachmentId String
+
+  carrier    StockCode @relation("CompatCarrier", fields: [carrierId], references: [id])
+  attachment StockCode @relation("CompatAttachment", fields: [attachmentId], references: [id])
+
+  @@unique([carrierId, attachmentId])
+  @@map("attachment_compatibilities")
+}
+
+// ============================================================
+// MOVEMENTS
+// ============================================================
+
+model Movement {
+  id            String   @id @default(uuid())
+  movementNo    String   @unique
+  intent        String   // MovementIntent enum
+  status        String   @default("DRAFT") // MovementStatus enum
+  sourcePlaceId String?
+  destPlaceId   String?
+  projectId     String?
+  metadata      Json?    // Intent-specific data
+  remarks       String?
+  createdById   String
+  parentId      String?  // For partial receipt child movements
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  sourcePlace   Place?            @relation("MovementSource", fields: [sourcePlaceId], references: [id])
+  destPlace     Place?            @relation("MovementDest", fields: [destPlaceId], references: [id])
+  project       Project?          @relation(fields: [projectId], references: [id])
+  createdBy     User              @relation("MovementCreatedBy", fields: [createdById], references: [id])
+  parent        Movement?         @relation("MovementChildren", fields: [parentId], references: [id])
+  children      Movement[]        @relation("MovementChildren")
+  lines         MovementLine[]
+  receipts      MovementReceipt[]
+  approval      ApprovalInstance? @relation("ApprovalMovement")
+  attachments   MovementAttachmentCaptured[]
+
+  @@index([status])
+  @@index([intent])
+  @@index([createdById])
+  @@map("movements")
+}
+
+model MovementLine {
+  id          String @id @default(uuid())
+  movementId  String
+  stockCodeId String
+  qty         Float
+  qtyReceived Float  @default(0)
+  remarks     String?
+
+  movement  Movement  @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  stockCode StockCode @relation(fields: [stockCodeId], references: [id])
+  receiptLines MovementReceiptLine[]
+
+  @@map("movement_lines")
+}
+
+model MovementReceipt {
+  id         String   @id @default(uuid())
+  movementId String
+  receivedBy String
+  receivedAt DateTime @default(now())
+  remarks    String?
+
+  movement Movement              @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  lines    MovementReceiptLine[]
+
+  @@map("movement_receipts")
+}
+
+model MovementReceiptLine {
+  id              String @id @default(uuid())
+  receiptId       String
+  movementLineId  String
+  qtyReceived     Float
+
+  receipt      MovementReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  movementLine MovementLine    @relation(fields: [movementLineId], references: [id])
+
+  @@map("movement_receipt_lines")
+}
+
+model MovementAttachmentCaptured {
+  id          String   @id @default(uuid())
+  movementId  String
+  carrierId   String
+  mountedId   String
+  capturedAt  DateTime @default(now())
+
+  movement Movement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+
+  @@map("movement_attachment_captured")
+}
+
+// ============================================================
+// APPROVAL
+// ============================================================
+
+model ApprovalChain {
+  id         String @id @default(uuid())
+  name       String
+  entityType String // ApprovalEntityType enum
+  conditions Json?  // { isHighValue: true, intent: "WRITE_OFF", etc. }
+  isActive   Boolean @default(true)
+  createdAt  DateTime @default(now())
+
+  steps     ApprovalChainStep[]
+  instances ApprovalInstance[]
+
+  @@map("approval_chains")
+}
+
+model ApprovalChainStep {
+  id        String @id @default(uuid())
+  chainId   String
+  stepOrder Int
+  roleId    String
+
+  chain ApprovalChain @relation(fields: [chainId], references: [id], onDelete: Cascade)
+  role  Role          @relation(fields: [roleId], references: [id])
+
+  @@unique([chainId, stepOrder])
+  @@map("approval_chain_steps")
+}
+
+model ApprovalInstance {
+  id            String   @id @default(uuid())
+  chainId       String
+  entityType    String
+  entityId      String
+  movementId    String?  @unique // For Movement approvals
+  currentStep   Int      @default(1)
+  status        String   @default("PENDING") // ApprovalStatus enum
+  requestedById String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  chain     ApprovalChain  @relation(fields: [chainId], references: [id])
+  requestedBy User         @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
+  movement  Movement?      @relation("ApprovalMovement", fields: [movementId], references: [id])
+  actions   ApprovalAction[]
+
+  @@index([entityType, entityId])
+  @@index([status])
+  @@map("approval_instances")
+}
+
+model ApprovalAction {
+  id          String   @id @default(uuid())
+  instanceId  String
+  stepOrder   Int
+  action      String   // APPROVE, REJECT
+  actedById   String
+  comment     String?
+  createdAt   DateTime @default(now())
+
+  instance ApprovalInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  actedBy  User             @relation(fields: [actedById], references: [id])
+
+  @@map("approval_actions")
+}
+
+// ============================================================
+// MAINTENANCE
+// ============================================================
+
+model MaintenanceWo {
+  id           String    @id @default(uuid())
+  woNumber     String    @unique
+  stockCodeId  String
+  type         String    // WoType enum
+  priority     String    @default("MEDIUM") // WoPriority enum
+  status       String    @default("OPEN") // WoStatus enum
+  description  String
+  placeId      String?
+  assignedToId String?
+  pmInstanceId String?   @unique
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  stockCode  StockCode           @relation(fields: [stockCodeId], references: [id])
+  place      Place?              @relation(fields: [placeId], references: [id])
+  assignedTo User?               @relation("WoAssignedTo", fields: [assignedToId], references: [id])
+  pmInstance PmInstance?         @relation(fields: [pmInstanceId], references: [id])
+  parts      MaintenanceWoPart[]
+  labour     MaintenanceWoLabour[]
+  comments   MaintenanceWoComment[]
+
+  @@index([stockCodeId])
+  @@index([status])
+  @@map("maintenance_wos")
+}
+
+model MaintenanceWoPart {
+  id          String @id @default(uuid())
+  woId        String
+  stockCodeId String
+  qty         Float
+  cost        Float?
+
+  wo MaintenanceWo @relation(fields: [woId], references: [id], onDelete: Cascade)
+
+  @@map("maintenance_wo_parts")
+}
+
+model MaintenanceWoLabour {
+  id      String @id @default(uuid())
+  woId    String
+  name    String
+  hours   Float
+  rate    Float?
+
+  wo MaintenanceWo @relation(fields: [woId], references: [id], onDelete: Cascade)
+
+  @@map("maintenance_wo_labour")
+}
+
+model MaintenanceWoComment {
+  id        String   @id @default(uuid())
+  woId      String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  wo MaintenanceWo @relation(fields: [woId], references: [id], onDelete: Cascade)
+
+  @@map("maintenance_wo_comments")
+}
+
+model PmSchedule {
+  id           String @id @default(uuid())
+  stockCodeId  String
+  name         String
+  frequency    String  // PmFrequency enum
+  intervalDays Int?
+  intervalMeter Float?
+  meterType    String?
+  tasks        String? // Description of PM tasks
+  isActive     Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stockCode StockCode    @relation(fields: [stockCodeId], references: [id])
+  instances PmInstance[]
+
+  @@map("pm_schedules")
+}
+
+model PmInstance {
+  id          String    @id @default(uuid())
+  scheduleId  String
+  status      String    @default("UPCOMING") // PmInstanceStatus enum
+  dueDate     DateTime
+  completedAt DateTime?
+  skippedAt   DateTime?
+  skipReason  String?
+  createdAt   DateTime  @default(now())
+
+  schedule PmSchedule     @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  wo       MaintenanceWo?
+
+  @@index([scheduleId, status])
+  @@index([dueDate])
+  @@map("pm_instances")
+}
+
+model CertificationRecord {
+  id          String    @id @default(uuid())
+  stockCodeId String
+  certType    String
+  certNumber  String?
+  issuedBy    String?
+  issuedAt    DateTime?
+  expiresAt   DateTime
+  fileId      String?
+  createdAt   DateTime  @default(now())
+
+  stockCode StockCode @relation(fields: [stockCodeId], references: [id], onDelete: Cascade)
+
+  @@index([stockCodeId])
+  @@index([expiresAt])
+  @@map("certification_records")
+}
+
+// ============================================================
+// INTELLIGENCE
+// ============================================================
+
+model ReportRun {
+  id         String   @id @default(uuid())
+  reportType String
+  parameters Json?
+  result     Json?
+  generatedBy String
+  createdAt  DateTime @default(now())
+
+  @@map("report_runs")
+}
+
+model Alert {
+  id        String   @id @default(uuid())
+  type      String   // AlertType enum
+  severity  String   // AlertSeverity enum
+  entityType String
+  entityId  String
+  message   String
+  isResolved Boolean @default(false)
+  resolvedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([type, isResolved])
+  @@index([entityType, entityId])
+  @@map("alerts")
+}
+
+model QuerySaved {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  queryType String
+  filters   Json
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("queries_saved")
+}
+
+model CostHead {
+  id          String @id @default(uuid())
+  stockCodeId String
+  headCode    String
+  headName    String
+  amount      Float
+  period      String // "2026-01" format
+
+  stockCode StockCode @relation(fields: [stockCodeId], references: [id])
+
+  @@index([stockCodeId, period])
+  @@map("cost_heads")
+}
+
+model GlMap {
+  id           String @id @default(uuid())
+  category     String
+  subCategory  String?
+  glAccount    String
+  glName       String
+
+  @@unique([category, subCategory])
+  @@map("gl_maps")
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+model NotificationTemplate {
+  id       String @id @default(uuid())
+  code     String @unique
+  subject  String
+  body     String
+  channel  String @default("IN_APP") // NotificationChannel enum
+
+  @@map("notification_templates")
+}
+
+model NotificationPreference {
+  id       String  @id @default(uuid())
+  userId   String
+  code     String  // Template code
+  enabled  Boolean @default(true)
+  channel  String  @default("IN_APP")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, code, channel])
+  @@map("notification_preferences")
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  link      String?
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============================================================
+// FILES & INTEGRATION
+// ============================================================
+
+model FileUpload {
+  id          String   @id @default(uuid())
+  filename    String
+  mimeType    String
+  size        Int
+  storagePath String
+  ownerType   String   // Polymorphic: "MOVEMENT", "PILE", "WO", etc.
+  ownerId     String
+  uploadedBy  String
+  createdAt   DateTime @default(now())
+
+  @@index([ownerType, ownerId])
+  @@map("file_uploads")
+}
+
+model AcumaticaSyncLog {
+  id         String   @id @default(uuid())
+  direction  String   // SyncDirection enum
+  entityType String
+  entityId   String?
+  status     String   // SyncStatus enum
+  payload    Json?
+  error      String?
+  createdAt  DateTime @default(now())
+
+  @@index([direction, status])
+  @@map("acumatica_sync_logs")
+}
+
+model AppSetting {
+  id    String @id @default(uuid())
+  key   String @unique
+  value String
+  group String?
+
+  @@map("app_settings")
+}
