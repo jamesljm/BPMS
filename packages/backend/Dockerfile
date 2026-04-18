@@ -1,4 +1,5 @@
-FROM node:20-alpine AS base
+FROM node:20-slim AS base
+RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
 FROM base AS deps
@@ -30,9 +31,6 @@ COPY --from=builder /app/packages/backend/node_modules ./node_modules
 COPY --from=builder /app/packages/backend/package.json ./package.json
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
-
-COPY --from=builder /app/packages/backend/start.sh ./start.sh
-RUN chmod +x start.sh
 
 ENV PORT=10000
 EXPOSE 10000
