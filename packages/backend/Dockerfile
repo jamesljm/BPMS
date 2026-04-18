@@ -34,6 +34,7 @@ COPY --from=builder /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
 COPY --from=builder /app/packages/backend/start.sh ./start.sh
 RUN chmod +x start.sh
 
+ENV PORT=10000
 EXPOSE 10000
 
-CMD ["sh", "./start.sh"]
+CMD ["node", "-e", "const http=require('http');const s=http.createServer((q,r)=>{r.writeHead(200);r.end(JSON.stringify({status:'ok'}))});s.listen(process.env.PORT||10000,()=>console.log('Test server on port '+(process.env.PORT||10000)))"]
