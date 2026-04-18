@@ -5,3 +5,4 @@ dist/
 .env.local
 *.log
 .DS_Store
+packages/frontend/next-env.d.ts
