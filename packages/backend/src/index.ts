@@ -62,6 +62,17 @@ app.use('/api/v1/places', authenticate, placeRoutes);
 app.use('/api/v1/uoms', authenticate, uomRoutes);
 app.use('/api/v1/dashboard', authenticate, dashboardRoutes);
 
+// Temporary seed endpoint (remove after initial deploy)
+app.post('/api/v1/admin/seed', async (req, res) => {
+  try {
+    const { runSeed } = await import('./seed-fn');
+    await runSeed();
+    res.json({ message: 'Seed completed successfully' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Error handler
 app.use(errorHandler);
 
