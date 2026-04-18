@@ -4,6 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Shield } from "lucide-react";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 
 export default function RolesPage() {
   const { data: roles, isLoading } = useQuery({
@@ -11,34 +15,35 @@ export default function RolesPage() {
     queryFn: () => api.get("/roles").then((r) => r.data),
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingSpinner />;
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Roles & Permissions</h1>
+    <div className="p-4 lg:p-6 animate-fade-in">
+      <PageHeader title="Roles & Permissions" subtitle="System roles and their access levels" />
 
       <div className="grid gap-4">
         {roles?.map((role: any) => (
-          <Card key={role.id}>
+          <Card key={role.id} className="hover:shadow-sm transition-shadow">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <CardTitle className="text-lg">{role.name}</CardTitle>
-                  {role.isSystem && <Badge variant="secondary">System</Badge>}
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary">
+                    <Shield className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">{role.name}</CardTitle>
+                    {role.description && (
+                      <p className="text-sm text-muted-foreground">{role.description}</p>
+                    )}
+                  </div>
                 </div>
-                <span className="text-sm text-muted-foreground">
-                  {role._count?.userRoles || 0} user(s)
-                </span>
+                <div className="flex items-center gap-2">
+                  {role.isSystem && <StatusBadge status="System" />}
+                  <span className="text-sm text-muted-foreground">
+                    {role._count?.userRoles || 0} user(s)
+                  </span>
+                </div>
               </div>
-              {role.description && (
-                <p className="text-sm text-muted-foreground">{role.description}</p>
-              )}
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-1">

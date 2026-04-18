@@ -3,16 +3,32 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, UserX, UserCheck } from "lucide-react";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 
 export default function UsersPage() {
   const [search, setSearch] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
+  const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "Admin1234", phone: "" });
   const queryClient = useQueryClient();
 
@@ -25,7 +41,7 @@ export default function UsersPage() {
     mutationFn: (data: any) => api.post("/users", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      setShowCreate(false);
+      setOpen(false);
       setForm({ name: "", email: "", password: "Admin1234", phone: "" });
       toast.success("User created");
     },
@@ -42,35 +58,50 @@ export default function UsersPage() {
   });
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Users</h1>
-        <Button onClick={() => setShowCreate(!showCreate)}>
-          <Plus className="h-4 w-4 mr-2" /> Add User
-        </Button>
-      </div>
-
-      {showCreate && (
-        <Card className="mb-6">
-          <CardHeader><CardTitle className="text-lg">Create User</CardTitle></CardHeader>
-          <CardContent>
+    <div className="p-4 lg:p-6 animate-fade-in">
+      <PageHeader title="Users" subtitle="Manage user accounts and access">
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" /> Add User
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create User</DialogTitle>
+              <DialogDescription>Add a new user to the system.</DialogDescription>
+            </DialogHeader>
             <form
               onSubmit={(e) => { e.preventDefault(); createMutation.mutate(form); }}
-              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+              className="space-y-4"
             >
-              <Input placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-              <Input type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-              <Input type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
-              <Input placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-              <div className="md:col-span-2">
-                <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? "Creating..." : "Create"}
-                </Button>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+                </div>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Password</Label>
+                  <Input type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input placeholder="Phone (optional)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                </div>
+              </div>
+              <Button type="submit" className="w-full" disabled={createMutation.isPending}>
+                {createMutation.isPending ? "Creating..." : "Create User"}
+              </Button>
             </form>
-          </CardContent>
-        </Card>
-      )}
+          </DialogContent>
+        </Dialog>
+      </PageHeader>
 
       <div className="mb-4 relative">
         <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -82,30 +113,43 @@ export default function UsersPage() {
         />
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="text-left p-3 font-medium">Name</th>
-                    <th className="text-left p-3 font-medium">Email</th>
-                    <th className="text-left p-3 font-medium">Roles</th>
-                    <th className="text-left p-3 font-medium">Status</th>
-                    <th className="text-left p-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data?.data?.map((user: any) => (
-                    <tr key={user.id} className="border-b hover:bg-muted/25">
-                      <td className="p-3 font-medium">{user.name}</td>
-                      <td className="p-3 text-muted-foreground">{user.email}</td>
-                      <td className="p-3">
+      {isLoading ? (
+        <LoadingSpinner />
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Roles</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[80px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data?.data?.map((user: any) => {
+                  const initials = user.name
+                    ?.split(" ")
+                    .map((n: string) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2);
+                  return (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                              {initials}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium">{user.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                      <TableCell>
                         <div className="flex gap-1 flex-wrap">
                           {user.userRoles?.map((ur: any) => (
                             <Badge key={ur.id} variant="secondary" className="text-xs">
@@ -114,29 +158,32 @@ export default function UsersPage() {
                             </Badge>
                           ))}
                         </div>
-                      </td>
-                      <td className="p-3">
-                        <Badge variant={user.isActive ? "default" : "destructive"}>
-                          {user.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={user.isActive ? "Active" : "Inactive"} />
+                      </TableCell>
+                      <TableCell>
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon"
+                          className="h-8 w-8"
                           onClick={() => toggleActive.mutate({ id: user.id, isActive: !user.isActive })}
                         >
-                          {user.isActive ? "Deactivate" : "Activate"}
+                          {user.isActive ? (
+                            <UserX className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <UserCheck className="h-4 w-4 text-emerald-600" />
+                          )}
                         </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

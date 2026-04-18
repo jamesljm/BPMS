@@ -6,6 +6,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -30,11 +31,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold text-primary">BPMS</CardTitle>
-          <CardDescription>Geohan Bored Pile Management System</CardDescription>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-amber-100 dark:from-background dark:to-background p-4">
+      <Card className="w-full max-w-md animate-fade-in">
+        <CardHeader className="text-center space-y-4">
+          <div className="flex justify-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-2xl shadow-lg">
+              G
+            </div>
+          </div>
+          <div>
+            <CardTitle className="text-3xl font-bold text-primary">BPMS</CardTitle>
+            <CardDescription className="mt-1">Geohan Bored Pile Management System</CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -44,8 +52,9 @@ export default function LoginPage() {
               </div>
             )}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
+              <Label htmlFor="email">Email</Label>
               <Input
+                id="email"
                 type="email"
                 placeholder="admin@bpms.com"
                 value={email}
@@ -54,8 +63,9 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Password</label>
+              <Label htmlFor="password">Password</Label>
               <Input
+                id="password"
                 type="password"
                 placeholder="Enter your password"
                 value={password}

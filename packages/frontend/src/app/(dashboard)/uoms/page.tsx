@@ -6,11 +6,25 @@ import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 
 export default function UomsPage() {
-  const [showCreate, setShowCreate] = useState(false);
+  const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ code: "", name: "" });
   const queryClient = useQueryClient();
 
@@ -23,7 +37,7 @@ export default function UomsPage() {
     mutationFn: (data: any) => api.post("/uoms", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["uoms"] });
-      setShowCreate(false);
+      setOpen(false);
       setForm({ code: "", name: "" });
       toast.success("UOM created");
     },
@@ -31,65 +45,63 @@ export default function UomsPage() {
   });
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Units of Measure</h1>
-        <Button onClick={() => setShowCreate(!showCreate)}>
-          <Plus className="h-4 w-4 mr-2" /> Add UOM
-        </Button>
-      </div>
-
-      {showCreate && (
-        <Card className="mb-6">
-          <CardContent className="p-4">
+    <div className="p-4 lg:p-6 animate-fade-in">
+      <PageHeader title="Units of Measure" subtitle="Manage measurement units for stock codes">
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" /> Add UOM
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Unit of Measure</DialogTitle>
+              <DialogDescription>Add a new UOM to the system.</DialogDescription>
+            </DialogHeader>
             <form
               onSubmit={(e) => { e.preventDefault(); createMutation.mutate(form); }}
-              className="flex gap-4 items-end"
+              className="space-y-4"
             >
-              <div className="flex-1">
-                <label className="text-sm font-medium mb-1 block">Code</label>
+              <div className="space-y-2">
+                <Label>Code</Label>
                 <Input placeholder="e.g. EA, KG, M" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required />
               </div>
-              <div className="flex-1">
-                <label className="text-sm font-medium mb-1 block">Name</label>
+              <div className="space-y-2">
+                <Label>Name</Label>
                 <Input placeholder="e.g. Each, Kilogram" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
               </div>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? "Creating..." : "Create"}
+              <Button type="submit" className="w-full" disabled={createMutation.isPending}>
+                {createMutation.isPending ? "Creating..." : "Create UOM"}
               </Button>
             </form>
+          </DialogContent>
+        </Dialog>
+      </PageHeader>
+
+      {isLoading ? (
+        <LoadingSpinner />
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Name</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {uoms?.map((uom: any) => (
+                  <TableRow key={uom.id}>
+                    <TableCell className="font-mono font-medium">{uom.code}</TableCell>
+                    <TableCell>{uom.name}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
-
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="text-left p-3 font-medium">Code</th>
-                    <th className="text-left p-3 font-medium">Name</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {uoms?.map((uom: any) => (
-                    <tr key={uom.id} className="border-b hover:bg-muted/25">
-                      <td className="p-3 font-mono font-medium">{uom.code}</td>
-                      <td className="p-3">{uom.name}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
