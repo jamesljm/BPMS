@@ -136,5 +136,44 @@ export async function runSeed() {
     await prisma.uom.upsert({ where: { code: u.code }, update: {}, create: u });
   }
 
-  console.log('Seed completed: 7 roles, 10 users, 8 places, 15 UOMs');
+  // ===== STOCK CODES =====
+  // Lookup UOMs by code
+  const uomMap: Record<string, string> = {};
+  const allUoms = await prisma.uom.findMany();
+  for (const u of allUoms) uomMap[u.code] = u.id;
+
+  const stockCodes = [
+    { code: 'EQ-CRAWLCR', description: 'Crawler Crane 80T', category: 'EQUIPMENT', uomCode: 'EA', isSerialized: true, maintenancePolicy: 'BOTH' },
+    { code: 'EQ-BORMACH', description: 'Boring Machine BG28', category: 'EQUIPMENT', uomCode: 'EA', isSerialized: true, maintenancePolicy: 'PREVENTIVE' },
+    { code: 'EQ-TREMIE', description: 'Tremie Pipe Set', category: 'EQUIPMENT', uomCode: 'SET', isSerialized: true },
+    { code: 'MT-REBAR40', description: 'Rebar T40 (40mm)', category: 'MATERIAL', uomCode: 'TON' },
+    { code: 'MT-CONCG40', description: 'Concrete Grade 40', category: 'MATERIAL', uomCode: 'M3', isBulkConsumable: true },
+    { code: 'MT-BENTONIT', description: 'Bentonite Slurry', category: 'MATERIAL', uomCode: 'L', isBulkConsumable: true },
+    { code: 'CS-CASPIPE', description: 'Casing Pipe 1200mm', category: 'MATERIAL', uomCode: 'M', carriesAttachments: true },
+    { code: 'TL-KELHOOK', description: 'Kelly Bar Hook', category: 'TOOL', uomCode: 'EA', requiresCertification: true },
+    { code: 'SP-HYDRFLT', description: 'Hydraulic Filter', category: 'SPARE_PART', uomCode: 'EA', isSingleUse: true },
+    { code: 'CN-WELDROD', description: 'Welding Rod E7018', category: 'CONSUMABLE', uomCode: 'KG', isBulkConsumable: true, isSingleUse: true },
+  ];
+
+  for (const sc of stockCodes) {
+    const { uomCode, ...rest } = sc;
+    const uomId = uomMap[uomCode];
+    if (!uomId) { console.warn(`UOM ${uomCode} not found, skipping ${sc.code}`); continue; }
+    await prisma.stockCode.upsert({
+      where: { code: sc.code },
+      update: {},
+      create: {
+        ...rest,
+        uomId,
+        isSerialized: rest.isSerialized ?? false,
+        carriesAttachments: rest.carriesAttachments ?? false,
+        isBulkConsumable: rest.isBulkConsumable ?? false,
+        isSingleUse: rest.isSingleUse ?? false,
+        requiresCertification: rest.requiresCertification ?? false,
+        maintenancePolicy: rest.maintenancePolicy ?? 'NONE',
+      },
+    });
+  }
+
+  console.log('Seed completed: 7 roles, 10 users, 8 places, 15 UOMs, 10 stock codes');
 }

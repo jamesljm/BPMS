@@ -15,6 +15,7 @@ import roleRoutes from './routes/roles';
 import placeRoutes from './routes/places';
 import uomRoutes from './routes/uoms';
 import dashboardRoutes from './routes/dashboard';
+import stockCodeRoutes from './routes/stock-codes';
 
 const app = express();
 
@@ -62,6 +63,7 @@ app.use('/api/v1/roles', authenticate, roleRoutes);
 app.use('/api/v1/places', authenticate, placeRoutes);
 app.use('/api/v1/uoms', authenticate, uomRoutes);
 app.use('/api/v1/dashboard', authenticate, dashboardRoutes);
+app.use('/api/v1/stock-codes', authenticate, stockCodeRoutes);
 
 // Temporary seed endpoint (remove after initial deploy)
 app.post('/api/v1/admin/seed', async (req, res) => {
