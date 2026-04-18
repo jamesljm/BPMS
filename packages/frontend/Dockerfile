@@ -24,15 +24,22 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm --filter frontend build
 
 FROM base AS runner
-WORKDIR /app/packages/frontend
+WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 
-COPY --from=builder /app/packages/frontend/.next/standalone/app/packages/frontend ./
-COPY --from=builder /app/packages/frontend/.next/static ./.next/static
-RUN mkdir -p public
-COPY --from=builder /app/packages/frontend/public ./public 2>/dev/null || true
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages/shared ./packages/shared
+COPY --from=builder /app/packages/frontend/node_modules ./packages/frontend/node_modules
+COPY --from=builder /app/packages/frontend/.next ./packages/frontend/.next
+COPY --from=builder /app/packages/frontend/package.json ./packages/frontend/package.json
+COPY --from=builder /app/packages/frontend/next.config.js ./packages/frontend/next.config.js
+RUN mkdir -p packages/frontend/public
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 
-EXPOSE 3000
+WORKDIR /app/packages/frontend
 
-CMD ["node", "server.js"]
+EXPOSE 10000
+
+CMD ["npx", "next", "start", "-p", "10000"]

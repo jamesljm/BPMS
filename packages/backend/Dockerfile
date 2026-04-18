@@ -31,6 +31,6 @@ COPY --from=builder /app/packages/backend/package.json ./package.json
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
 
-EXPOSE 3001
+EXPOSE 10000
 
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/index.js"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss 2>&1 || echo 'prisma db push failed, continuing...' && node dist/index.js"]
