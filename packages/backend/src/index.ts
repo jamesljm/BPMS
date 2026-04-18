@@ -50,8 +50,9 @@ const authLimiter = rateLimit({
 app.use('/api/v1/auth/login', authLimiter);
 
 // Health check
+let startupError: string | null = null;
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ status: startupError ? 'error' : 'ok', error: startupError, timestamp: new Date().toISOString() });
 });
 
 // API routes
@@ -76,19 +77,15 @@ app.post('/api/v1/admin/seed', async (req, res) => {
 // Error handler
 app.use(errorHandler);
 
-// Start server
-async function main() {
-  try {
-    await prisma.$connect();
-    console.log('Database connected');
+// Start server — always listen, even if DB fails
+const port = config.PORT;
+app.listen(port, () => {
+  console.log(`BPMS backend listening on port ${port}`);
+});
 
-    app.listen(config.PORT, () => {
-      console.log(`BPMS backend running on port ${config.PORT}`);
-    });
-  } catch (err) {
-    console.error('Failed to start server:', err);
-    process.exit(1);
-  }
-}
-
-main();
+prisma.$connect()
+  .then(() => console.log('Database connected'))
+  .catch((err: any) => {
+    startupError = err.message || String(err);
+    console.error('Database connection failed:', startupError);
+  });

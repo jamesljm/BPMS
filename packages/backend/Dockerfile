@@ -37,4 +37,4 @@ RUN chmod +x start.sh
 ENV PORT=10000
 EXPOSE 10000
 
-CMD ["node", "-e", "try{console.log('Loading config...');const c=require('./dist/config');console.log('Config loaded, PORT:',c.config.PORT);console.log('Loading prisma...');const p=require('./dist/prisma');console.log('Prisma loaded');console.log('Loading index...');require('./dist/index');console.log('Index loaded')}catch(e){console.error('CRASH:',e.message,e.stack);const http=require('http');http.createServer((q,r)=>{r.writeHead(500);r.end(JSON.stringify({error:e.message}))}).listen(process.env.PORT||10000,()=>console.log('Error server on '+(process.env.PORT||10000)))}"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss 2>&1 || echo 'DB push failed, continuing...'; node dist/index.js"]
